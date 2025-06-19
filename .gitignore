@@ -1,0 +1,31 @@
+# Ignore Visual Studio temporary files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Ignore build output
+bin/
+obj/
+
+# Ignore Unity/VS temp files
+[Dd]ebug*/
+[Rr]elease*/
+x64/
+x86/
+build/
+[Bb]uild/
+
+# Ignore local config files
+*.GlobalSettings.json.bak
+*.GlobalSettings.json
+
+# Ignore IDE-specific files
+*.csproj.user
+*.pidb
+*.sln.cache
+*.dotSettings
+
+# Ignore specific files and directories
+ConfigurableMaskDamage/README.md
