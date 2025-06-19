@@ -24,7 +24,7 @@ namespace ConfigurableMaskDamage
         // конструктор мода
         public ConfigurableMaskDamage() : base("ConfigurableMaskDamage") { }
 
-        public override string GetVersion() => "1.0.2";
+        public override string GetVersion() => "1.0.0";
 
         public override void Initialize() // Хуки на которые надо ссылаться, загрузка настроек, чекать героя и когда он получает  дамаг
         {
