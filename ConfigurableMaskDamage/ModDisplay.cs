@@ -1,6 +1,7 @@
 using Modding;
 using System;
 using UnityEngine;
+using Satchel.BetterMenus;
 
 namespace ConfigurableMaskDamage
 {
@@ -43,7 +44,7 @@ namespace ConfigurableMaskDamage
         }
 
         public void Destroy()
-        {
+        {   
             _canvas.SetActive(false);
             _text = null;
         }

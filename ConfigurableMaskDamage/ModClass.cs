@@ -7,34 +7,26 @@ namespace ConfigurableMaskDamage
 {
     public class ConfigurableMaskDamage : Mod
     {
-        private int damageMultiplier = 1; // множитель урона
-        private bool isDamageShow = true; // показать или скрыть мод
+        // Используем класс Settings для управления настройками
+        private readonly Settings _settings = new Settings();
 
-
-
-        // бинды по умолчанию
-        private KeyCode keyIncrease = KeyCode.O;
-        private KeyCode keyDecrease = KeyCode.I;
-        private KeyCode keyToggle = KeyCode.P;
-
-        // путь до сейвов мода и создание его бэкапа
-        private string settingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "..", "LocalLow", "Team Cherry", "Hollow Knight", "ConfigurableMaskDamage.GlobalSettings.json");
-        private string backupPath => settingsPath + ".bak";
-
-        // конструктор мода
+        // Конструктор мода
         public ConfigurableMaskDamage() : base("ConfigurableMaskDamage") { }
 
         public override string GetVersion() => "1.0.0";
 
-        public override void Initialize() // Хуки на которые надо ссылаться, загрузка настроек, чекать героя и когда он получает  дамаг
+        public override void Initialize()
         {
             Log("ConfigurableMaskDamage Initializing...");
 
+            // Загружаем настройки
             LoadSettings();
 
+            // Подключаем хуки
             ModHooks.AfterTakeDamageHook += OnAfterTakeDamage;
             ModHooks.HeroUpdateHook += OnHeroUpdate;
 
+            // Создаем UI
             CreateUI();
         }
 
@@ -47,43 +39,43 @@ namespace ConfigurableMaskDamage
             else
             {
                 ModDisplay.Instance.Destroy(); // Удаляем старый UI
-                ModDisplay.Instance = new ModDisplay(); // Создаём новый
+                ModDisplay.Instance = new ModDisplay(); // Создаем новый
             }
         }
-        // сама функция которая вызывается при получении урона :3
+
+        // Функция, вызываемая при получении урона
         private int OnAfterTakeDamage(int hazardType, int damageAmount)
         {
             Log($"{hazardType}");
-            return damageAmount * damageMultiplier;
-
+            return damageAmount * _settings.DamageMultiplier;
         }
 
-        // логика управления через клавиши
+        // Логика управления через клавиши
         private void OnHeroUpdate()
         {
-            if (Input.GetKeyDown(keyIncrease))
+            if (Input.GetKeyDown(_settings.KeyIncrease))
             {
-                damageMultiplier++;
-                Log($"[ConfigurableMaskDamage] Установлен множитель урона: x{damageMultiplier}");
+                _settings.DamageMultiplier++;
+                Log($"[ConfigurableMaskDamage] Установлен множитель урона: x{_settings.DamageMultiplier}");
                 SaveSettings();
                 UpdateDisplay();
             }
 
-            if (Input.GetKeyDown(keyDecrease))
+            if (Input.GetKeyDown(_settings.KeyDecrease))
             {
-                if (damageMultiplier > 1)
+                if (_settings.DamageMultiplier > 1)
                 {
-                    damageMultiplier--;
+                    _settings.DamageMultiplier--;
                 }
-                Log($"[ConfigurableMaskDamage] Установлен множитель урона: x{damageMultiplier}");
+                Log($"[ConfigurableMaskDamage] Установлен множитель урона: x{_settings.DamageMultiplier}");
                 SaveSettings();
                 UpdateDisplay();
             }
 
-            if (Input.GetKeyDown(keyToggle))
+            if (Input.GetKeyDown(_settings.KeyToggle))
             {
-                isDamageShow = !isDamageShow;
-                if (isDamageShow)
+                _settings.IsDamageShow = !_settings.IsDamageShow;
+                if (_settings.IsDamageShow)
                 {
                     CreateUI(); // Создание UI при включении мода
                     UpdateDisplay();
@@ -92,63 +84,37 @@ namespace ConfigurableMaskDamage
                 {
                     ModDisplay.Instance.Destroy(); // Удаление UI при выключении
                 }
-                Log($"[ConfigurableMaskDamage] Изменение урона: {(isDamageShow ? "Показывается" : "Скрыто")}");
+                Log($"[ConfigurableMaskDamage] Изменение урона: {(_settings.IsDamageShow ? "Показывается" : "Скрыто")}");
                 SaveSettings();
             }
         }
+
         private void UpdateDisplay()
         {
             if (ModDisplay.Instance != null)
             {
-                ModDisplay.Instance.Display($"DamageMultiplier: {damageMultiplier}");
+                ModDisplay.Instance.Display($"DamageMultiplier: {_settings.DamageMultiplier}");
             }
         }
 
-        [Serializable]
-
-        // структура файла-настройки
-        private class SettingsData
-        {
-            public int DamageMultiplier = 1;
-            public bool IsDamageShow = true;
-            public string KeyIncrease = "O";
-            public string KeyDecrease = "I";
-            public string KeyToggle = "P";
-        }
-
-        // логика загрузки настроек
+        // Загрузка настроек
         private void LoadSettings()
         {
             try
             {
+                // Получаем путь к файлу настроек
+                string settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "..", "LocalLow", "Team Cherry", "Hollow Knight", "ConfigurableMaskDamage.GlobalSettings.json");
+
+                // Проверяем, существует ли файл
                 if (File.Exists(settingsPath))
                 {
                     string json = File.ReadAllText(settingsPath);
                     SettingsData data = JsonUtility.FromJson<SettingsData>(json);
 
-                    damageMultiplier = data.DamageMultiplier;
-                    isDamageShow = data.IsDamageShow;
-
-                    Enum.TryParse(data.KeyIncrease, out keyIncrease);
-                    Enum.TryParse(data.KeyDecrease, out keyDecrease);
-                    Enum.TryParse(data.KeyToggle, out keyToggle);
+                    // Применяем настройки
+                    _settings.OnLoadGlobal(data);
 
                     Log("[ConfigurableMaskDamage] Настройки загружены из GlobalSettings.json.");
-                }
-                else if (File.Exists(backupPath))
-                {
-                    string json = File.ReadAllText(backupPath);
-                    SettingsData data = JsonUtility.FromJson<SettingsData>(json);
-
-                    damageMultiplier = data.DamageMultiplier;
-                    isDamageShow = data.IsDamageShow;
-
-                    Enum.TryParse(data.KeyIncrease, out keyIncrease);
-                    Enum.TryParse(data.KeyDecrease, out keyDecrease);
-                    Enum.TryParse(data.KeyToggle, out keyToggle);
-
-                    Log("[ConfigurableMaskDamage] Настройки загружены из .bak файла.");
-                    SaveSettings(); // Восстанавливаем основной файл
                 }
                 else
                 {
@@ -161,13 +127,16 @@ namespace ConfigurableMaskDamage
             }
         }
 
-
-        // логика сохранения настроек
+        // Сохранение настроек
         private void SaveSettings()
         {
             try
             {
-                // Создаём необходимые папки, если они отсутствуют
+                // Получаем путь к файлу настроек
+                string settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "..", "LocalLow", "Team Cherry", "Hollow Knight", "ConfigurableMaskDamage.GlobalSettings.json");
+                string backupPath = settingsPath + ".bak";
+
+                // Создаем директорию, если она не существует
                 string directoryPath = Path.GetDirectoryName(settingsPath);
                 if (!Directory.Exists(directoryPath))
                 {
@@ -175,24 +144,15 @@ namespace ConfigurableMaskDamage
                     Log($"[ConfigurableMaskDamage] Создана директория: {directoryPath}");
                 }
 
-                var data = new SettingsData
-                {
-                    DamageMultiplier = damageMultiplier,
-                    IsDamageShow = isDamageShow,
-                    KeyIncrease = keyIncrease.ToString(),
-                    KeyDecrease = keyDecrease.ToString(),
-                    KeyToggle = keyToggle.ToString()
-                };
-
-                string json = JsonUtility.ToJson(data, true);
-
-                // Создаём резервную копию, если существует оригинальный файл
+                // Создаем резервную копию существующего файла
                 if (File.Exists(settingsPath))
                 {
                     File.Copy(settingsPath, backupPath, overwrite: true);
                 }
 
                 // Сохраняем новые данные
+                var data = _settings.OnSaveGlobal();
+                string json = JsonUtility.ToJson(data, true);
                 File.WriteAllText(settingsPath, json);
 
                 Log("[ConfigurableMaskDamage] Настройки сохранены в GlobalSettings.json.");
@@ -201,7 +161,6 @@ namespace ConfigurableMaskDamage
             {
                 LogError($"[ConfigurableMaskDamage] Ошибка при сохранении настроек: {ex.Message}");
             }
-
         }
     }
-}   
+}
