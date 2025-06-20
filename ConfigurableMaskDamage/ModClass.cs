@@ -133,7 +133,7 @@ namespace ConfigurableMaskDamage
             try
             {
                 // Получаем путь к файлу настроек
-                string settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "..", "LocalLow", "Team Cherry", "Hollow Knight", "ConfigurableMaskDamage.GlobalSettings.json");
+                string settingsPath = Path.Combine(Application.persistentDataPath, "ConfigurableMaskDamage.GlobalSettings.json");
                 string backupPath = settingsPath + ".bak";
 
                 // Создаем директорию, если она не существует

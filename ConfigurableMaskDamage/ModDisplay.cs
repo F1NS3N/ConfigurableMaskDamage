@@ -1,7 +1,6 @@
 using Modding;
 using System;
 using UnityEngine;
-using Satchel.BetterMenus;
 
 namespace ConfigurableMaskDamage
 {
