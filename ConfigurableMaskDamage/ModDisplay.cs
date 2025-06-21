@@ -43,9 +43,15 @@ namespace ConfigurableMaskDamage
         }
 
         public void Destroy()
-        {   
-            _canvas.SetActive(false);
+        {
+            if (_canvas != null)
+            {
+                _canvas.SetActive(false);
+                UnityEngine.Object.Destroy(_canvas); // Уничтожаем GameObject
+            }
+
             _text = null;
+            Instance = null; // <-- ОЧЕНЬ ВАЖНО: сбросим статический экземпляр
         }
 
         public void Update()

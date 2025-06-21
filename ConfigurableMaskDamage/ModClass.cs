@@ -30,15 +30,26 @@ namespace ConfigurableMaskDamage
 
     public class GlobalSettings
     {
+        // стандартная механика мода
         public int DamageMultiplier = 1;
         public bool IsDamageShow = true;
 
 
         [JsonConverter(typeof(PlayerActionSetConverter))]
         public KeyBinds keybinds = new KeyBinds();
+
+        // шаманские фичи
+        public bool EnableTimeDamage = true;     // Включить урон по времени
+        public float TimeBetweenDamage = 10f;   // Интервал урона по времени (в секундах)
+
     }
     public class ConfigurableMaskDamage : Mod, ICustomMenuMod, IGlobalSettings<GlobalSettings>
     {
+        private float lastLogTime = 0f;
+        private const float LogInterval = 1f; // Раз в секунду
+        public float damageTimer = 0f;
+        public bool isPlayerAlive = true;
+
         private Menu MenuRef;
 
         public MenuScreen GetMenuScreen(MenuScreen modListMenu, ModToggleDelegates? modtoggledelegates)
@@ -79,26 +90,53 @@ namespace ConfigurableMaskDamage
                     },
                     loadSetting: () => GS.IsDamageShow ? 0 : 1
                 ),
-                    new KeyBind(
+
+                new KeyBind(
                     name: "IncreaseKey",
-                    playerAction: GS.keybinds.IncreaseKey),
+                    playerAction: GS.keybinds.IncreaseKey
+                ),
 
-                    new KeyBind(
+                new KeyBind(
                     name: "DecreaseKey",
-                    playerAction: GS.keybinds.DecreaseKey),
+                    playerAction: GS.keybinds.DecreaseKey
+                ),
 
-                    new KeyBind(
+                new KeyBind(
                     name: "ToggleKey",
-                    playerAction: GS.keybinds.ToggleKey),
+                    playerAction: GS.keybinds.ToggleKey
+                ),
+
+                // --- HorizontalOption: Enable Time Damage ---
+                new HorizontalOption(
+                    name: "Enable Time Damage",
+                    description: "Enable or disable passive damage over time",
+                    values: new[] { "On", "Off" },
+                    applySetting: index =>
+                    {
+                        GS.EnableTimeDamage = index == 0; // 0 = On, 1 = Off
+                        OnSaveGlobal();
+                    },
+                    loadSetting: () => GS.EnableTimeDamage ? 0 : 1
+                ),
 
 
-                    }
-                );
-
+                new CustomSlider(
+                    name: "TimeBetweenDamage",
+                    storeValue: val => GS.TimeBetweenDamage = val,
+                    loadValue: () => GS.TimeBetweenDamage, //to load the value on menu creation
+                    minValue: 1f,
+                    maxValue: 60f,
+                    wholeNumbers: false
+                )
+            }
+            );
+            
             }
 
             return MenuRef.GetMenuScreen(modListMenu);
         }
+
+
         public bool ToggleButtonInsideMenu { get; }
 
         // Конструктор мода
@@ -124,7 +162,16 @@ namespace ConfigurableMaskDamage
 
             // всякие хуки
             ModHooks.AfterTakeDamageHook += OnAfterTakeDamage;
+            ModHooks.AfterPlayerDeadHook += OnPlayerDead;
             ModHooks.HeroUpdateHook += OnHeroUpdate;
+            ModHooks.NewGameHook += () => {
+                damageTimer = 0f;
+                isPlayerAlive = true;
+            };
+            ModHooks.SavegameLoadHook += (slot) => {
+                damageTimer = 0f;
+                isPlayerAlive = true;
+            };
 
             CreateUI();
         }
@@ -133,7 +180,7 @@ namespace ConfigurableMaskDamage
         {
             if (ModDisplay.Instance == null)
             {
-                ModDisplay.Instance = new ModDisplay();
+                ModDisplay.Instance = new ModDisplay(); // Создаём новый
             }
             else
             {
@@ -141,7 +188,7 @@ namespace ConfigurableMaskDamage
                 ModDisplay.Instance = new ModDisplay(); // Создаем новый
             }
         }
-
+    
         // Функция, вызываемая при получении урона
         private int OnAfterTakeDamage(int hazardType, int damageAmount)
         {
@@ -149,9 +196,75 @@ namespace ConfigurableMaskDamage
             return damageAmount * GS.DamageMultiplier;
         }
 
+        private void OnPlayerDead()
+        {
+            isPlayerAlive = false;
+            damageTimer = 0f;
+        }
         // Логика управления через клавиши
         private void OnHeroUpdate()
         {
+            if (HeroController.instance != null && PlayerData.instance != null)
+            {
+                isPlayerAlive = PlayerData.instance.health > 0;
+
+                if (!isPlayerAlive) return;
+
+                // ---- ОСНОВНАЯ ЛОГИКА ----
+                if (GS.EnableTimeDamage)
+                {
+                    // Только если мод включён — обновляем таймер
+                    damageTimer += Time.deltaTime;
+
+                    if (Time.time - lastLogTime >= LogInterval)
+                    {
+                        int seconds = Mathf.FloorToInt(damageTimer % 60);
+                        int minutes = Mathf.FloorToInt(damageTimer / 60);
+                        string timeFormatted = $"{minutes:00}:{seconds:00}";
+
+                        Log($"[Timer] Время жизни героя: {timeFormatted}");
+
+                        lastLogTime = Time.time; // Обновляем время последнего лога
+                    }
+
+                    // Проверяем, пора ли нанести урон
+                    if (damageTimer >= GS.TimeBetweenDamage
+                        && Mathf.FloorToInt(damageTimer) % Mathf.CeilToInt(GS.TimeBetweenDamage) == 0)
+                    {
+                        if (PlayerData.instance.health > 0)
+                        {
+                            if (PlayerData.instance.health == 1)
+                            {
+                                HeroController.instance.TakeDamage(
+                                    go: null,
+                                    damageSide: 0,
+                                    hazardType: 999,
+                                    damageAmount: 1
+                                );
+                            }
+                            else
+                            {
+                                HeroController.instance.TakeHealth(1);
+                            }
+
+                            Log($"[TimeDamage] Нанесён урон по времени: -1 маска");
+                            damageTimer = 0f; // Сбрасываем таймер после урона
+                        }
+                    }
+                }
+                else
+                {
+                    // Если мод выключен — таймер не растёт
+                    damageTimer = 0f;
+                }
+            }
+            else
+            {
+                isPlayerAlive = false;
+            }
+            UpdateDisplay();
+
+            // --- Клавиши управления ---
             if (GS.keybinds.IncreaseKey.WasPressed)
             {
                 GS.DamageMultiplier++;
@@ -176,25 +289,46 @@ namespace ConfigurableMaskDamage
                 GS.IsDamageShow = !GS.IsDamageShow;
                 if (GS.IsDamageShow)
                 {
-                    CreateUI(); // Создание UI при включении мода
+                    CreateUI();
                     UpdateDisplay();
                 }
                 else
                 {
-                    ModDisplay.Instance.Destroy(); // Удаление UI при выключении
+                    ModDisplay.Instance.Destroy();
                 }
                 Log($"[ConfigurableMaskDamage] Изменение урона: {(GS.IsDamageShow ? "Показывается" : "Скрыто")}");
                 OnSaveGlobal();
             }
         }
 
+
         private void UpdateDisplay()
         {
-            if (ModDisplay.Instance != null)
+            if (!GS.IsDamageShow)
             {
-                ModDisplay.Instance.Display($"DamageMultiplier: {GS.DamageMultiplier}");
+                return; // Не показываем UI, если выключено
             }
 
+            if (ModDisplay.Instance == null)
+            {
+                CreateUI(); // Пересоздаём, если был уничтожен
+            }
+
+            string displayText = $"DamageMultiplier: {GS.DamageMultiplier}\n";
+
+            if (!GS.EnableTimeDamage)
+            {
+                displayText += "Time Damage: Off";
+            }
+            else
+            {
+                int secondsLeft = (int)(GS.TimeBetweenDamage - (damageTimer % GS.TimeBetweenDamage));
+                displayText += $"Next damage in: {secondsLeft}s\n";
+            }
+
+            ModDisplay.Instance?.Display(displayText);
         }
+
     }
+    
 }
