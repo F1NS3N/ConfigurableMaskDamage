@@ -1,6 +1,5 @@
 # ConfigurableMaskDamage
-
-*A mod that allows to customize mask damage multiplier.*
+*A mod that allows to customize mask damage multiplier!*
 
 ### Default binds:
 
@@ -11,3 +10,9 @@
 To change the binds, go to the mod settings in the game or follow this path:
 
 *"C:\Users\Username\AppData\LocalLow\Team Cherry\Hollow Knight\ConfigurableDamage.GlobalSettings.json"*
+
+## Damage on timer
+
+*Adds a new game mechanic that deals damage to you after a certain amount of time!*
+
+To set it up, go to settings
