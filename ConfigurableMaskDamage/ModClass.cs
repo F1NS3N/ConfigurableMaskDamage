@@ -39,14 +39,12 @@ namespace ConfigurableMaskDamage
         public KeyBinds keybinds = new KeyBinds();
 
         // шаманские фичи
-        public bool EnableTimeDamage = true;     // Включить урон по времени
+        public bool EnableTimeDamage = false;     // Включить урон по времени
         public float TimeBetweenDamage = 10f;   // Интервал урона по времени (в секундах)
 
     }
     public class ConfigurableMaskDamage : Mod, ICustomMenuMod, IGlobalSettings<GlobalSettings>
     {
-        private float lastLogTime = 0f;
-        private const float LogInterval = 1f; // Раз в секунду
         public float damageTimer = 0f;
         public bool isPlayerAlive = true;
 
@@ -215,17 +213,6 @@ namespace ConfigurableMaskDamage
                 {
                     // Только если мод включён — обновляем таймер
                     damageTimer += Time.deltaTime;
-
-                    if (Time.time - lastLogTime >= LogInterval)
-                    {
-                        int seconds = Mathf.FloorToInt(damageTimer % 60);
-                        int minutes = Mathf.FloorToInt(damageTimer / 60);
-                        string timeFormatted = $"{minutes:00}:{seconds:00}";
-
-                        Log($"[Timer] Время жизни героя: {timeFormatted}");
-
-                        lastLogTime = Time.time; // Обновляем время последнего лога
-                    }
 
                     // Проверяем, пора ли нанести урон
                     if (damageTimer >= GS.TimeBetweenDamage
