@@ -1,21 +1,105 @@
 ﻿using System;
 using System.IO;
+using InControl;
 using Modding;
+using Modding.Converters;
+using Newtonsoft.Json;
+using Satchel;
+using Satchel.BetterMenus;
 using UnityEngine;
 
 namespace ConfigurableMaskDamage
 {
+    public class KeyBinds : PlayerActionSet
+    {
+        public PlayerAction IncreaseKey;
+        public PlayerAction DecreaseKey;
+        public PlayerAction ToggleKey;
+
+        public KeyBinds()
+        {
+            IncreaseKey = CreatePlayerAction("Increase Damage");
+            DecreaseKey = CreatePlayerAction("Decrease Damage");
+            ToggleKey = CreatePlayerAction("Toggle UI");
+
+            IncreaseKey.AddDefaultBinding(Key.O);
+            DecreaseKey.AddDefaultBinding(Key.I);
+            ToggleKey.AddDefaultBinding(Key.P);
+        }
+    }
 
     public class GlobalSettings
     {
         public int DamageMultiplier = 1;
         public bool IsDamageShow = true;
-        public KeyCode KeyIncrease = KeyCode.O;
-        public KeyCode KeyDecrease = KeyCode.I; 
-        public KeyCode KeyToggle = KeyCode.P;  
+
+
+        [JsonConverter(typeof(PlayerActionSetConverter))]
+        public KeyBinds keybinds = new KeyBinds();
     }
-    public class ConfigurableMaskDamage : Mod, IGlobalSettings<GlobalSettings>
+    public class ConfigurableMaskDamage : Mod, ICustomMenuMod, IGlobalSettings<GlobalSettings>
     {
+        private Menu MenuRef;
+
+        public MenuScreen GetMenuScreen(MenuScreen modListMenu, ModToggleDelegates? modtoggledelegates)
+        {
+            if (MenuRef == null)
+            {
+                Log("Creating new menu instance...");
+                MenuRef = new Menu(
+                    name: "ConfigurableMaskDamage",
+                    elements: new Element[]
+                    {
+                new HorizontalOption(
+                    name: "Show Damage Multiplier",
+                    description: "Should the damage multiplier be active?",
+                    values: new[] { "Yes", "No" },
+                    applySetting: index =>
+                    {
+                        try
+                        {
+                            GS.IsDamageShow = index == 0;
+
+                            OnSaveGlobal();
+
+                            if (GS.IsDamageShow)
+                            {
+                                CreateUI();
+                                UpdateDisplay();
+                            }
+                            else
+                            {
+                                ModDisplay.Instance?.Destroy();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"Error in applySetting: {ex}");
+                        }
+                    },
+                    loadSetting: () => GS.IsDamageShow ? 0 : 1
+                ),
+                    new KeyBind(
+                    name: "IncreaseKey",
+                    playerAction: GS.keybinds.IncreaseKey),
+
+                    new KeyBind(
+                    name: "DecreaseKey",
+                    playerAction: GS.keybinds.DecreaseKey),
+
+                    new KeyBind(
+                    name: "ToggleKey",
+                    playerAction: GS.keybinds.ToggleKey),
+
+
+                    }
+                );
+
+            }
+
+            return MenuRef.GetMenuScreen(modListMenu);
+        }
+        public bool ToggleButtonInsideMenu { get; }
 
         // Конструктор мода
         public ConfigurableMaskDamage() : base("ConfigurableMaskDamage") { }
@@ -68,7 +152,7 @@ namespace ConfigurableMaskDamage
         // Логика управления через клавиши
         private void OnHeroUpdate()
         {
-            if (Input.GetKeyDown(GS.KeyIncrease))
+            if (GS.keybinds.IncreaseKey.WasPressed)
             {
                 GS.DamageMultiplier++;
                 Log($"[ConfigurableMaskDamage] Установлен множитель урона: x{GS.DamageMultiplier}");
@@ -76,7 +160,7 @@ namespace ConfigurableMaskDamage
                 UpdateDisplay();
             }
 
-            if (Input.GetKeyDown(GS.KeyDecrease))
+            if (GS.keybinds.DecreaseKey.WasPressed)
             {
                 if (GS.DamageMultiplier > 1)
                 {
@@ -87,7 +171,7 @@ namespace ConfigurableMaskDamage
                 UpdateDisplay();
             }
 
-            if (Input.GetKeyDown(GS.KeyToggle))
+            if (GS.keybinds.ToggleKey.WasPressed)
             {
                 GS.IsDamageShow = !GS.IsDamageShow;
                 if (GS.IsDamageShow)
