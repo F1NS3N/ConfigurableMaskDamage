@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using GlobalEnums;
 using InControl;
 using Modding;
 using Modding.Converters;
@@ -39,12 +40,16 @@ namespace ConfigurableMaskDamage
         public KeyBinds keybinds = new KeyBinds();
 
         // шаманские фичи
-        public bool EnableTimeDamage = false;     // Включить урон по времени
+        public bool EnableTimeDamage = false;
+        public bool DamageAnimation = true;
         public float TimeBetweenDamage = 10f;   // Интервал урона по времени (в секундах)
+    
 
     }
     public class ConfigurableMaskDamage : Mod, ICustomMenuMod, IGlobalSettings<GlobalSettings>
     {
+
+
         public float damageTimer = 0f;
         public bool isPlayerAlive = true;
 
@@ -116,6 +121,17 @@ namespace ConfigurableMaskDamage
                     },
                     loadSetting: () => GS.EnableTimeDamage ? 0 : 1
                 ),
+                    new HorizontalOption(
+                    name: "Damage animation",
+                    description: "Allows you to enable or disable the damage animation.",
+                    values: new[] { "On", "Off" },
+                    applySetting: index =>
+                    {
+                        GS.DamageAnimation = index == 0; // 0 = On, 1 = Off
+                        OnSaveGlobal();
+                    },
+                    loadSetting: () => GS.DamageAnimation ? 0 : 1
+                ),
 
 
                 new CustomSlider(
@@ -161,6 +177,7 @@ namespace ConfigurableMaskDamage
             // всякие хуки
             ModHooks.AfterTakeDamageHook += OnAfterTakeDamage;
             ModHooks.AfterPlayerDeadHook += OnPlayerDead;
+
             ModHooks.HeroUpdateHook += OnHeroUpdate;
             ModHooks.NewGameHook += () => {
                 damageTimer = 0f;
@@ -173,7 +190,18 @@ namespace ConfigurableMaskDamage
 
             CreateUI();
         }
+        private bool IsPlayerBlocked()
+        {
+            if (GameManager.instance == null || HeroController.instance == null)
+                return true;
 
+            // Проверяем, если игрок не может управлять персонажем
+            bool isInputDisabled = !HeroController.instance.acceptingInput;
+
+
+
+            return isInputDisabled;
+        }
         private void CreateUI()
         {
             if (ModDisplay.Instance == null)
@@ -202,56 +230,60 @@ namespace ConfigurableMaskDamage
         // Логика управления через клавиши
         private void OnHeroUpdate()
         {
-            if (HeroController.instance != null && PlayerData.instance != null)
+            if (HeroController.instance == null || PlayerData.instance == null)
             {
-                isPlayerAlive = PlayerData.instance.health > 0;
+                isPlayerAlive = false;
+                return;
+            }
 
-                if (!isPlayerAlive) return;
+            isPlayerAlive = PlayerData.instance.health > 0;
+            if (!isPlayerAlive) return;
 
-                // ---- ОСНОВНАЯ ЛОГИКА ----
-                if (GS.EnableTimeDamage)
+            if (GS.EnableTimeDamage && !IsPlayerBlocked())
+            {
+                damageTimer += Time.deltaTime;
+
+                if (damageTimer >= GS.TimeBetweenDamage)
                 {
-                    // Только если мод включён — обновляем таймер
-                    damageTimer += Time.deltaTime;
-
-                    // Проверяем, пора ли нанести урон
-                    if (damageTimer >= GS.TimeBetweenDamage
-                        && Mathf.FloorToInt(damageTimer) % Mathf.CeilToInt(GS.TimeBetweenDamage) == 0)
+                    if (GS.DamageAnimation)
                     {
-                        if (PlayerData.instance.health > 0)
+                        // Сброс таймера и нанесение урона
+                        HeroController.instance.TakeDamage(
+                                         go: null,
+                                         damageSide: 0,
+                                         hazardType: 999,
+                                         damageAmount: 1
+                                     );
+                        Log($"[TimeDamage] Нанесён урон по времени: -1 маска");
+                        damageTimer = 0f;
+                    }
+                    else
+                    {
+                        if (PlayerData.instance.health == 1)
                         {
-                            if (PlayerData.instance.health == 1)
-                            {
-                                HeroController.instance.TakeDamage(
-                                    go: null,
-                                    damageSide: 0,
-                                    hazardType: 999,
-                                    damageAmount: 1
-                                );
-                            }
-                            else
-                            {
-                                HeroController.instance.TakeHealth(1);
-                            }
-
-                            Log($"[TimeDamage] Нанесён урон по времени: -1 маска");
-                            damageTimer = 0f; // Сбрасываем таймер после урона
+                            HeroController.instance.TakeDamage(
+                                go: null,
+                                damageSide: 0,
+                                hazardType: 999,
+                                damageAmount: 1
+                            );
+                        }
+                        else
+                        {
+                            HeroController.instance.TakeHealth(1 * GS.DamageMultiplier);
+                            damageTimer = 0f;
                         }
                     }
-                }
-                else
-                {
-                    // Если мод выключен — таймер не растёт
-                    damageTimer = 0f;
                 }
             }
             else
             {
-                isPlayerAlive = false;
+  
             }
+
             UpdateDisplay();
 
-            // --- Клавиши управления ---
+            // --- Управление клавишами ---
             if (GS.keybinds.IncreaseKey.WasPressed)
             {
                 GS.DamageMultiplier++;
@@ -281,7 +313,7 @@ namespace ConfigurableMaskDamage
                 }
                 else
                 {
-                    ModDisplay.Instance.Destroy();
+                    ModDisplay.Instance?.Destroy();
                 }
                 Log($"[ConfigurableMaskDamage] Изменение урона: {(GS.IsDamageShow ? "Показывается" : "Скрыто")}");
                 OnSaveGlobal();
