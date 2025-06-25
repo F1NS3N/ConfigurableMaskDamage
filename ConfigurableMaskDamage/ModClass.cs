@@ -154,7 +154,7 @@ namespace ConfigurableMaskDamage
         // Конструктор мода
         public ConfigurableMaskDamage() : base("ConfigurableMaskDamage") { }
 
-        public override string GetVersion() => "1.1.1";
+        public override string GetVersion() => "1.1.2";
 
         public static GlobalSettings GS { get; set; } = new GlobalSettings();
 
