@@ -1,13 +1,11 @@
 ﻿using System;
-using System.IO;
-using GlobalEnums;
 using InControl;
 using Modding;
 using Modding.Converters;
 using Newtonsoft.Json;
-using Satchel;
 using Satchel.BetterMenus;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace ConfigurableMaskDamage
 {
@@ -43,7 +41,7 @@ namespace ConfigurableMaskDamage
         public bool EnableTimeDamage = false;
         public bool DamageAnimation = true;
         public float TimeBetweenDamage = 10f;   // Интервал урона по времени (в секундах)
-    
+
 
     }
     public class ConfigurableMaskDamage : Mod, ICustomMenuMod, IGlobalSettings<GlobalSettings>
@@ -144,7 +142,7 @@ namespace ConfigurableMaskDamage
                 )
             }
             );
-            
+
             }
 
             return MenuRef.GetMenuScreen(modListMenu);
@@ -156,21 +154,21 @@ namespace ConfigurableMaskDamage
         // Конструктор мода
         public ConfigurableMaskDamage() : base("ConfigurableMaskDamage") { }
 
-        public override string GetVersion() => "1.1.0";
+        public override string GetVersion() => "1.1.1";
 
-    public static GlobalSettings GS { get; set; } = new GlobalSettings();
+        public static GlobalSettings GS { get; set; } = new GlobalSettings();
 
-    public void OnLoadGlobal(GlobalSettings s)
-    {
-        GS = s;
-    }
+        public void OnLoadGlobal(GlobalSettings s)
+        {
+            GS = s;
+        }
 
-    public GlobalSettings OnSaveGlobal()
-    {
-        return GS;
-    }
+        public GlobalSettings OnSaveGlobal()
+        {
+            return GS;
+        }
 
-    public override void Initialize()
+        public override void Initialize()
         {
             Log("ConfigurableMaskDamage Initializing...");
 
@@ -179,11 +177,13 @@ namespace ConfigurableMaskDamage
             ModHooks.AfterPlayerDeadHook += OnPlayerDead;
 
             ModHooks.HeroUpdateHook += OnHeroUpdate;
-            ModHooks.NewGameHook += () => {
+            ModHooks.NewGameHook += () =>
+            {
                 damageTimer = 0f;
                 isPlayerAlive = true;
             };
-            ModHooks.SavegameLoadHook += (slot) => {
+            ModHooks.SavegameLoadHook += (slot) =>
+            {
                 damageTimer = 0f;
                 isPlayerAlive = true;
             };
@@ -214,7 +214,7 @@ namespace ConfigurableMaskDamage
                 ModDisplay.Instance = new ModDisplay(); // Создаем новый
             }
         }
-    
+
         // Функция, вызываемая при получении урона
         private int OnAfterTakeDamage(int hazardType, int damageAmount)
         {
@@ -239,7 +239,25 @@ namespace ConfigurableMaskDamage
             isPlayerAlive = PlayerData.instance.health > 0;
             if (!isPlayerAlive) return;
 
-            if (GS.EnableTimeDamage && !IsPlayerBlocked())
+            string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+
+            // Сейф сцены снова
+            string[] safeScenes = new string[]
+            {
+        "GG_Atrium",
+        "GG_Atrium_Roof",
+        "GG_Blue_Room",
+        "GG_Workshop"
+            };
+
+            bool isInSafeZone = Array.Exists(safeScenes, scene => scene == currentScene);
+            bool isBossRush = PlayerData.instance.GetBool("bossRushMode");
+
+            // можно ли наносить урон по времени
+            bool canApplyTimeDamage = GS.EnableTimeDamage && !IsPlayerBlocked();
+            bool shouldPauseTimer = isInSafeZone && isBossRush;
+
+            if (canApplyTimeDamage && !shouldPauseTimer)
             {
                 damageTimer += Time.deltaTime;
 
@@ -247,14 +265,13 @@ namespace ConfigurableMaskDamage
                 {
                     if (GS.DamageAnimation)
                     {
-                        // Сброс таймера и нанесение урона
                         HeroController.instance.TakeDamage(
-                                         go: null,
-                                         damageSide: 0,
-                                         hazardType: 999,
-                                         damageAmount: 1
-                                     );
-                        Log($"[TimeDamage] Нанесён урон по времени: -1 маска");
+                            go: null,
+                            damageSide: 0,
+                            hazardType: 999,
+                            damageAmount: 1
+                        );
+                        Log($"[TimeDamage] Time-based damage applied: -1 mask");
                         damageTimer = 0f;
                     }
                     else
@@ -276,10 +293,6 @@ namespace ConfigurableMaskDamage
                     }
                 }
             }
-            else
-            {
-  
-            }
 
             UpdateDisplay();
 
@@ -287,22 +300,20 @@ namespace ConfigurableMaskDamage
             if (GS.keybinds.IncreaseKey.WasPressed)
             {
                 GS.DamageMultiplier++;
-                Log($"[ConfigurableMaskDamage] Установлен множитель урона: x{GS.DamageMultiplier}");
+                Log($"[ConfigurableMaskDamage] Damage multiplier set to: x{GS.DamageMultiplier}");
                 OnSaveGlobal();
                 UpdateDisplay();
             }
-
             if (GS.keybinds.DecreaseKey.WasPressed)
             {
                 if (GS.DamageMultiplier > 1)
                 {
                     GS.DamageMultiplier--;
                 }
-                Log($"[ConfigurableMaskDamage] Установлен множитель урона: x{GS.DamageMultiplier}");
+                Log($"[ConfigurableMaskDamage] Damage multiplier set to: x{GS.DamageMultiplier}");
                 OnSaveGlobal();
                 UpdateDisplay();
             }
-
             if (GS.keybinds.ToggleKey.WasPressed)
             {
                 GS.IsDamageShow = !GS.IsDamageShow;
@@ -315,7 +326,7 @@ namespace ConfigurableMaskDamage
                 {
                     ModDisplay.Instance?.Destroy();
                 }
-                Log($"[ConfigurableMaskDamage] Изменение урона: {(GS.IsDamageShow ? "Показывается" : "Скрыто")}");
+                Log($"[ConfigurableMaskDamage] Mask damage display: {(GS.IsDamageShow ? "Visible" : "Hidden")}");
                 OnSaveGlobal();
             }
         }
@@ -333,21 +344,40 @@ namespace ConfigurableMaskDamage
                 CreateUI(); // Пересоздаём, если был уничтожен
             }
 
-            string displayText = $"DamageMultiplier: {GS.DamageMultiplier}\n";
+            string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
 
-            if (!GS.EnableTimeDamage)
+            // Сцены где таймер не идёт (годхоум)
+            string[] safeScenes = new string[]
             {
-                displayText += "Time Damage: Off";
+        "GG_Atrium",
+        "GG_Atrium_Roof",
+        "GG_Blue_Room",
+        "GG_Workshop"
+            };
+            // переменные массивчики и т.д и т.п
+            bool isInSafeZone = Array.Exists(safeScenes, scene => scene == currentScene);
+            bool isBossRush = PlayerData.instance.GetBool("bossRushMode");
+
+            string displayText = $"Damage Multiplier: {GS.DamageMultiplier}\n";
+
+            if (isInSafeZone && isBossRush)
+            {
+                displayText += "Timer Paused (Safe Zone)";
             }
             else
             {
-                int secondsLeft = (int)(GS.TimeBetweenDamage - (damageTimer % GS.TimeBetweenDamage));
-                displayText += $"Next damage in: {secondsLeft}s\n";
+                if (!GS.EnableTimeDamage)
+                {
+                    displayText += "Time Damage: Off";
+                }
+                else
+                {
+                    int secondsLeft = (int)(GS.TimeBetweenDamage - (damageTimer % GS.TimeBetweenDamage));
+                    displayText += $"Next damage in: {secondsLeft}s";
+                }
             }
 
             ModDisplay.Instance?.Display(displayText);
         }
-
     }
-    
 }
