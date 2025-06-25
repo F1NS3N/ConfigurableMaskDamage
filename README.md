@@ -14,5 +14,5 @@ To change the binds, go to the mod settings in the game or follow this path:
 ## Damage on timer
 
 *Adds a new game mechanic that deals damage to you after a certain amount of time!*
-
+(passive damage in safe areas is disabled for godseeker mode)
 To set it up, go to settings
